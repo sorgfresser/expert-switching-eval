@@ -3,7 +3,7 @@
 To start the sweep, run the following command:
 
 ```bash
-wandb sweep --project ehrsql_sweep config.yaml
+wandb sweep --project ehrsql_sweep config.yml
 ```
 
 Note that `Sweep ID` will be printed to the console. This ID is used to start the agents.
