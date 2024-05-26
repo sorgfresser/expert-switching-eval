@@ -107,9 +107,6 @@ def switch_experts(
     return False
 
 
-PROMPT_KV = None
-PROMPT_CACHED = None
-PROMPT_IDS = None
 
 
 def generate_one(
@@ -123,7 +120,6 @@ def generate_one(
         question: str,
         identifier: str,
         no_switch=False,
-        cached_prompt=False,
         device="cpu",
 ):
     gen_config = GenerationConfigRoutable(**(model.generation_config.to_dict()))
@@ -137,16 +133,12 @@ def generate_one(
         create_tables=MIMIC_III_TABLES,
         problem=question,
     )
-    if cached_prompt:
-        prompt = prompt[len(PROMPT_CACHED):]
     input_ids = tokenizer(
         [prompt],
         add_special_tokens=False,
         return_tensors="pt",
         padding=True,
     )["input_ids"].to(device)
-    if cached_prompt:
-        input_ids = torch.cat([PROMPT_IDS, input_ids], dim=1)
 
     # Load grammar
     with open(grammar_path, "r") as file:
@@ -155,46 +147,20 @@ def generate_one(
     grammar_processor = GrammarConstrainedLogitsProcessor(grammar)
 
     try:
-        if cached_prompt:
-            output = model.generate(
-                input_ids,
-                max_new_tokens=100,
-                logits_processor=[grammar_processor],
-                num_return_sequences=1,
-                repetition_penalty=1.2,
-                past_key_values=PROMPT_KV,
-                generation_config=gen_config,
-            )
-        else:
-            output = model.generate(
-                input_ids,
-                max_new_tokens=100,
-                logits_processor=[grammar_processor],
-                num_return_sequences=1,
-                repetition_penalty=1.2,
-                generation_config=gen_config,
-            )
+        output = model.generate(
+            input_ids,
+            max_new_tokens=100,
+            logits_processor=[grammar_processor],
+            num_return_sequences=1,
+            repetition_penalty=1.2,
+            generation_config=gen_config,
+        )
     except Exception as e:
         print("Identifier", identifier)
         raise e
     # Remove the prompt
     output = output[:, len(input_ids[0]):]
     return tokenizer.batch_decode(output, skip_special_tokens=True)[0]
-
-
-def cache_prompt(model, tokenizer, prompt):
-    global PROMPT_KV
-    global PROMPT_CACHED
-    global PROMPT_IDS
-    PROMPT_CACHED = prompt[: prompt.index("Problem: ")]
-    PROMPT_IDS = tokenizer(PROMPT_CACHED, return_tensors="pt")["input_ids"].to(
-        model.device
-    )
-    PROMPT_KV = model(
-        PROMPT_IDS,
-        return_dict=True,
-        use_cache=True,
-    ).past_key_values
 
 
 # HARDCODED PATHS
@@ -214,13 +180,6 @@ def main():
     tokenizer.pad_token = tokenizer.eos_token
     model.generation_config.pad_token_id = model.generation_config.eos_token_id
 
-    # Generate prompt cache
-    prompt_with_tables = PROMPT.format(
-        create_tables=MIMIC_III_TABLES,
-        problem="",
-    )
-    with torch.no_grad():
-        cache_prompt(model, tokenizer, prompt_with_tables)
     with open(EHRSQL_PATH, "r") as file:
         questions = json.load(file)
         # Filter for possible
@@ -238,7 +197,6 @@ def main():
             question["question"],
             question["id"],
             device=model.device,
-            cached_prompt=True
         )
 
     # Dump to temp file
