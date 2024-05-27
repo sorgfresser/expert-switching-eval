@@ -208,6 +208,12 @@ def main():
 
     results = {}
     result_table = wandb.Table(columns=["id", "question", "predicted", "original"])
+    # Report initial values
+    wandb.log({
+        "fallbacks": 0,
+        "switches": 0,
+        "switches_wo_fallback": 0,
+    })
     total_fallbacks = 0
     total_switches = 0
     total_switches_wo_fallback = 0
