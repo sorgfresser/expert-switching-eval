@@ -127,6 +127,7 @@ def generate_one(
     gen_config = GenerationConfigRoutable(**(model.generation_config.to_dict()))
     gen_config.output_router_logits = True
     gen_config.output_hidden_states = True
+    gen_config.return_dict_in_generate = True
     if not no_switch:
         gen_config.switch_experts = partial(
             switch_experts, TOP_K_EXPERTS, TOP_P_EXPERTS, TOP_K_TOKENS, TOP_P_TOKENS
@@ -161,8 +162,17 @@ def generate_one(
         print("Identifier", identifier)
         raise e
     # Remove the prompt
-    output = output[:, len(input_ids[0]):]
-    return tokenizer.batch_decode(output, skip_special_tokens=True)[0]
+    output_ids = output.sequences
+    fallbacks = output.num_fallbacks
+    switches = output.num_switches
+    switches_wo_fallback = output.num_switches_wo_fallback
+    output = output_ids[:, len(input_ids[0]):]
+    return (
+        tokenizer.batch_decode(output, skip_special_tokens=True)[0],
+        fallbacks,
+        switches,
+        switches_wo_fallback,
+    )
 
 
 # Path environment variables
@@ -195,9 +205,13 @@ def main():
         questions = json.load(file)
         # Filter for possible
         questions = list(filter(lambda x: not x["is_impossible"], questions))
+
     results = {}
+    total_fallbacks = 0
+    total_switches = 0
+    total_switches_wo_fallback = 0
     for question in tqdm.tqdm(questions):
-        results[question["id"]] = generate_one(
+        results[question["id"]], fallbacks, switches, switches_wo_fallback = generate_one(
             top_k_experts,
             top_p_experts,
             top_k_tokens,
@@ -209,6 +223,14 @@ def main():
             question["id"],
             device=model.device,
         )
+        total_fallbacks += fallbacks
+        total_switches += switches
+        total_switches_wo_fallback += switches_wo_fallback
+        wandb.log({
+            "fallbacks": total_fallbacks,
+            "switches": total_switches,
+            "switches_wo_fallback": total_switches_wo_fallback,
+        })
 
     # Dump to temp file
     with NamedTemporaryFile("w") as f:
@@ -217,6 +239,9 @@ def main():
         # Evaluate
         eval_res = evaluate(EHRSQL_PATH, f.name, MIMIC_SQLITE_PATH)
         wandb.log({
+            "fallbacks": total_fallbacks,
+            "switches": total_switches,
+            "switches_wo_fallback": total_switches_wo_fallback,
             "execution_accuracy": eval_res["execution_accuracy"],
         })
 
