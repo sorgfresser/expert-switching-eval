@@ -1,3 +1,5 @@
+import os
+
 import torch
 from transformers_cfg.experts.mixtral import (
     MixtralForCausalLMRoutable,
@@ -163,10 +165,17 @@ def generate_one(
     return tokenizer.batch_decode(output, skip_special_tokens=True)[0]
 
 
-# HARDCODED PATHS
-EHRSQL_PATH = "data/valid.json"
-MIMIC_SQLITE_PATH = "data/mimic.db"
-GRAMMAR_PATH = "examples/grammars/sql_query.ebnf"
+# Path environment variables
+EHRSQL_PATH = os.environ.get("EHRSQL_PATH", None)
+MIMIC_SQLITE_PATH = os.environ.get("MIMIC_PATH", None)
+GRAMMAR_PATH = os.environ.get("GRAMMAR_PATH", None)
+
+if not EHRSQL_PATH:
+    raise ValueError("EHRSQL_PATH not set")
+if not MIMIC_SQLITE_PATH:
+    raise ValueError("MIMIC_PATH not set")
+if not GRAMMAR_PATH:
+    raise ValueError("GRAMMAR_PATH not set")
 
 
 def main():
