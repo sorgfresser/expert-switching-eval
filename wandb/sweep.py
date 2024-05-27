@@ -207,6 +207,7 @@ def main():
         questions = list(filter(lambda x: not x["is_impossible"], questions))
 
     results = {}
+    result_table = wandb.Table(columns=["id", "question", "answer"])
     total_fallbacks = 0
     total_switches = 0
     total_switches_wo_fallback = 0
@@ -231,6 +232,10 @@ def main():
             "switches": total_switches,
             "switches_wo_fallback": total_switches_wo_fallback,
         })
+        result_table.add_data(question["id"], question["question"], results[question["id"]])
+        wandb.log({
+            "results": result_table,
+        })
 
     # Dump to temp file
     with NamedTemporaryFile("w") as f:
@@ -239,9 +244,6 @@ def main():
         # Evaluate
         eval_res = evaluate(EHRSQL_PATH, f.name, MIMIC_SQLITE_PATH)
         wandb.log({
-            "fallbacks": total_fallbacks,
-            "switches": total_switches,
-            "switches_wo_fallback": total_switches_wo_fallback,
             "execution_accuracy": eval_res["execution_accuracy"],
         })
 
