@@ -204,7 +204,7 @@ def main():
             top_p_tokens,
             model,
             tokenizer,
-            "examples/grammars/sql_query.ebnf",
+            GRAMMAR_PATH,
             question["question"],
             question["id"],
             device=model.device,
