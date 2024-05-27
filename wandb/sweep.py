@@ -239,10 +239,11 @@ def main():
             "switches_wo_fallback": total_switches_wo_fallback,
         })
         result_table.add_data(question["id"], question["question"], results[question["id"]], question["query"])
-        wandb.log({
-            "results": result_table,
-        })
 
+    # Log results
+    wandb.log({
+        "results": result_table,
+    })
     # Dump to temp file
     with NamedTemporaryFile("w") as f:
         json.dump(results, f)
