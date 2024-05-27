@@ -207,7 +207,7 @@ def main():
         questions = list(filter(lambda x: not x["is_impossible"], questions))
 
     results = {}
-    result_table = wandb.Table(columns=["id", "question", "answer"])
+    result_table = wandb.Table(columns=["id", "question", "predicted", "original"])
     total_fallbacks = 0
     total_switches = 0
     total_switches_wo_fallback = 0
@@ -232,7 +232,7 @@ def main():
             "switches": total_switches,
             "switches_wo_fallback": total_switches_wo_fallback,
         })
-        result_table.add_data(question["id"], question["question"], results[question["id"]])
+        result_table.add_data(question["id"], question["question"], results[question["id"]], question["query"])
         wandb.log({
             "results": result_table,
         })
