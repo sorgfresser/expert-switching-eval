@@ -176,7 +176,9 @@ if not MIMIC_SQLITE_PATH:
     raise ValueError("MIMIC_PATH not set")
 if not GRAMMAR_PATH:
     raise ValueError("GRAMMAR_PATH not set")
-
+print("EHRSQL_PATH", EHRSQL_PATH)
+print("MIMIC_PATH", MIMIC_SQLITE_PATH)
+print("GRAMMAR_PATH", GRAMMAR_PATH
 
 def main():
     run = wandb.init()
