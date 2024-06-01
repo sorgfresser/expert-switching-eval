@@ -16,10 +16,13 @@ from transformers_cfg.switches import (
     switch_experts_top_k_experts,
     switch_experts_top_p_experts,
 )
-from .test_suite_sql_eval.evaluation import evaluate, build_foreign_key_map_from_json
+from test_suite_sql_eval.evaluation import evaluate, build_foreign_key_map_from_json
 from tempfile import NamedTemporaryFile
 import tqdm
 import wandb
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # HARDCODED FOR MIXTRAL
 PROMPT = """

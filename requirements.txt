@@ -1,2 +1,2 @@
 git+https://github.com/sorgfresser/transformers-CFG.git@expert-switching
-func-timeout
+python-dotenv
