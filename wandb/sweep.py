@@ -6,7 +6,6 @@ from transformers_cfg.experts.mixtral import (
     GenerationConfigRoutable,
 )
 import json
-from mimic import MIMIC_III_TABLES
 from transformers import AutoTokenizer
 from transformers_cfg.grammar_utils import IncrementalGrammarConstraint
 from transformers_cfg.generation.logits_process import GrammarConstrainedLogitsProcessor
@@ -17,7 +16,7 @@ from transformers_cfg.switches import (
     switch_experts_top_k_experts,
     switch_experts_top_p_experts,
 )
-from evaluate import evaluate
+from .test_suite_sql_eval.evaluation import evaluate, build_foreign_key_map_from_json
 from tempfile import NamedTemporaryFile
 import tqdm
 import wandb
@@ -109,8 +108,6 @@ def switch_experts(
     return False
 
 
-
-
 def generate_one(
         TOP_K_EXPERTS,
         TOP_P_EXPERTS,
@@ -119,6 +116,7 @@ def generate_one(
         model,
         tokenizer,
         grammar_path,
+        tables: str,
         question: str,
         identifier: str,
         no_switch=False,
@@ -133,7 +131,7 @@ def generate_one(
             switch_experts, TOP_K_EXPERTS, TOP_P_EXPERTS, TOP_K_TOKENS, TOP_P_TOKENS
         )
     prompt = PROMPT.format(
-        create_tables=MIMIC_III_TABLES,
+        create_tables=tables,
         problem=question,
     )
     input_ids = tokenizer(
@@ -175,20 +173,67 @@ def generate_one(
     )
 
 
+class Column:
+    def __init__(self, name, data_type):
+        self.name = name
+        self.data_type = data_type
+
+    def to_sql(self):
+        return f"{self.name} {self.data_type},"
+
+
+class Table:
+    def __init__(self, tablename, columns, pk):
+        self.name = tablename
+        self.columns = columns
+        self.pk = pk
+
+    def to_sql(self) -> str:
+        column_str = "\n\t".join(column.to_sql() for column in self.columns)
+        pk_str = f"\tPRIMARY KEY ({self.pk})" if self.pk else ""
+        return f"""CREATE TABLE {self.name} (
+{column_str}
+{pk_str}
+);
+"""
+
+
+def postprocess_sql(sql):
+    # Remove comments
+    lines = sql.split("\n")
+    # Remove rest of line after --
+    lines = [line.split("--")[0] for line in lines]
+    # Remove empty lines and strip
+    lines = [line.strip() for line in lines if line.strip()]
+    # Substitute \n
+    sql = " ".join(lines)
+    return sql
+
+
 # Path environment variables
-EHRSQL_PATH = os.environ.get("EHRSQL_PATH", None)
-MIMIC_SQLITE_PATH = os.environ.get("MIMIC_PATH", None)
+SPIDER_QUERY_PATH = os.environ.get("SPIDER_QUERY_PATH", None)
+SPIDER_GOLD_PATH = os.environ.get("SPIDER_GOLD_PATH", None)
+TABLES_JSON_PATH = os.environ.get("TABLES_JSON_PATH", None)
+DB_DIR = os.environ.get("DB_DIR", None)
 GRAMMAR_PATH = os.environ.get("GRAMMAR_PATH", None)
 
-if not EHRSQL_PATH:
-    raise ValueError("EHRSQL_PATH not set")
-if not MIMIC_SQLITE_PATH:
-    raise ValueError("MIMIC_PATH not set")
+# Check if all paths are set
+if not SPIDER_QUERY_PATH:
+    raise ValueError("SPIDER_QUERY_PATH not set")
+if not SPIDER_GOLD_PATH:
+    raise ValueError("SPIDER_GOLD_PATH not set")
+if not TABLES_JSON_PATH:
+    raise ValueError("TABLES_JSON_PATH not set")
+if not DB_DIR:
+    raise ValueError("DB_DIR not set")
 if not GRAMMAR_PATH:
     raise ValueError("GRAMMAR_PATH not set")
-print("EHRSQL_PATH", EHRSQL_PATH)
-print("MIMIC_PATH", MIMIC_SQLITE_PATH)
+print("SPIDER_QUERY_PATH", SPIDER_QUERY_PATH)
+print("SPIDER_GOLD_PATH", SPIDER_GOLD_PATH)
+print("TABLES_JSON_PATH", TABLES_JSON_PATH)
+print("DB_DIR", DB_DIR)
 print("GRAMMAR_PATH", GRAMMAR_PATH)
+
 
 def main():
     run = wandb.init()
@@ -201,12 +246,43 @@ def main():
     tokenizer.pad_token = tokenizer.eos_token
     model.generation_config.pad_token_id = model.generation_config.eos_token_id
 
-    with open(EHRSQL_PATH, "r") as file:
+    with open(SPIDER_QUERY_PATH, "r") as file:
         questions = json.load(file)
-        # Filter for possible
-        questions = list(filter(lambda x: not x["is_impossible"], questions))
+    with open(SPIDER_GOLD_PATH, "r") as file:
+        gold = file.readlines()
+        gold = [line.strip() for line in gold]
+    with open(TABLES_JSON_PATH, "r") as file:
+        databases = json.load(file)
+        table_statements = {}
+        for db in databases:
+            table_names = db["table_names_original"]
+            columns = {}
+            for column_data, column_type in zip(
+                    db["column_names_original"], db["column_types"]
+            ):
+                if column_data[0] == -1:
+                    continue
+                columns.setdefault(table_names[column_data[0]], []).append(
+                    Column(column_data[1], column_type)
+                )
+            db_tables = []
+            for table in columns:
+                db_tables.append(
+                    Table(
+                        table,
+                        columns[table],
+                        (
+                            db["primary_keys"][table_names.index(table)]
+                            if table_names.index(table) < len(db["primary_keys"])
+                            else None
+                        ),
+                    )
+                )
 
-    results = {}
+            table_statements[db["db_id"]] = "\n".join(
+                [table.to_sql() for table in db_tables]
+            )
+    results = []
     result_table = wandb.Table(columns=["id", "question", "predicted", "original"])
     # Report initial values
     wandb.log({
@@ -217,8 +293,8 @@ def main():
     total_fallbacks = 0
     total_switches = 0
     total_switches_wo_fallback = 0
-    for question in tqdm.tqdm(questions):
-        results[question["id"]], fallbacks, switches, switches_wo_fallback = generate_one(
+    for idx, question in enumerate(tqdm.tqdm(questions)):
+        result, fallbacks, switches, switches_wo_fallback = generate_one(
             top_k_experts,
             top_p_experts,
             top_k_tokens,
@@ -226,32 +302,46 @@ def main():
             model,
             tokenizer,
             GRAMMAR_PATH,
+            table_statements[question["db_id"]],
             question["question"],
-            question["id"],
+            str(idx),
             device=model.device,
         )
         total_fallbacks += fallbacks
         total_switches += switches
         total_switches_wo_fallback += switches_wo_fallback
+        result = postprocess_sql(result)
+        results.append(result)
         wandb.log({
             "fallbacks": total_fallbacks,
             "switches": total_switches,
             "switches_wo_fallback": total_switches_wo_fallback,
         })
-        result_table.add_data(question["id"], question["question"], results[question["id"]], question["query"])
+        result_table.add_data(idx, question["question"], result, gold[idx])
 
     # Log results
     wandb.log({
         "results": result_table,
     })
     # Dump to temp file
-    with NamedTemporaryFile("w") as f:
-        json.dump(results, f)
+    with NamedTemporaryFile("w", suffix=".sql") as f:
+        f.write("\n".join(results))
         f.flush()
         # Evaluate
-        eval_res = evaluate(EHRSQL_PATH, f.name, MIMIC_SQLITE_PATH)
+        kmaps = build_foreign_key_map_from_json(TABLES_JSON_PATH)
+        eval_res = evaluate(SPIDER_GOLD_PATH, f.name, DB_DIR, "all", kmaps, plug_value=False, keep_distinct=False,
+                            progress_bar_for_each_datapoint=False)
         wandb.log({
-            "execution_accuracy": eval_res["execution_accuracy"],
+            "execution_accuracy": eval_res["all"]["exec"],
+            "execution_accuracy_easy": eval_res["easy"]["exec"],
+            "execution_accuracy_medium": eval_res["medium"]["exec"],
+            "execution_accuracy_hard": eval_res["hard"]["exec"],
+            "execution_accuracy_extra": eval_res["extra"]["exec"],
+            "exact_match": eval_res["all"]["exact"],
+            "exact_match_easy": eval_res["easy"]["exact"],
+            "exact_match_medium": eval_res["medium"]["exact"],
+            "exact_match_hard": eval_res["hard"]["exact"],
+            "exact_match_extra": eval_res["extra"]["exact"],
         })
 
 

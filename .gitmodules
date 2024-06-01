@@ -1,0 +1,3 @@
+[submodule "wandb/test_suite_sql_eval"]
+	path = wandb/test_suite_sql_eval
+	url = https://github.com/sorgfresser/test-suite-sql-eval
