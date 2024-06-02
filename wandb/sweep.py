@@ -249,6 +249,8 @@ def main():
     tokenizer.pad_token = tokenizer.eos_token
     model.generation_config.pad_token_id = model.generation_config.eos_token_id
 
+    with open("indices.json", "r") as f:
+        indices = json.load(f)
     with open(SPIDER_QUERY_PATH, "r") as file:
         questions = json.load(file)
     with open(SPIDER_GOLD_PATH, "r") as file:
@@ -297,6 +299,8 @@ def main():
     total_switches = 0
     total_switches_wo_fallback = 0
     for idx, question in enumerate(tqdm.tqdm(questions)):
+        if idx not in indices:
+            continue
         result, fallbacks, switches, switches_wo_fallback = generate_one(
             top_k_experts,
             top_p_experts,
