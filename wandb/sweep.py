@@ -334,22 +334,27 @@ def main():
     with NamedTemporaryFile("w", suffix=".sql") as f:
         f.write("\n".join(results))
         f.flush()
-        # Evaluate
-        kmaps = build_foreign_key_map_from_json(TABLES_JSON_PATH)
-        eval_res = evaluate(SPIDER_GOLD_PATH, f.name, DB_DIR, "all", kmaps, plug_value=False, keep_distinct=False,
-                            progress_bar_for_each_datapoint=False)
-        wandb.log({
-            "execution_accuracy": eval_res["all"]["exec"],
-            "execution_accuracy_easy": eval_res["easy"]["exec"],
-            "execution_accuracy_medium": eval_res["medium"]["exec"],
-            "execution_accuracy_hard": eval_res["hard"]["exec"],
-            "execution_accuracy_extra": eval_res["extra"]["exec"],
-            "exact_match": eval_res["all"]["exact"],
-            "exact_match_easy": eval_res["easy"]["exact"],
-            "exact_match_medium": eval_res["medium"]["exact"],
-            "exact_match_hard": eval_res["hard"]["exact"],
-            "exact_match_extra": eval_res["extra"]["exact"],
-        })
+        # Crop gold to indices
+        with NamedTemporaryFile("w", suffix=".sql") as f_gold:
+            gold = [gold[idx] for idx in indices]
+            f_gold.write("\n".join(gold))
+            f_gold.flush()
+            # Evaluate
+            kmaps = build_foreign_key_map_from_json(TABLES_JSON_PATH)
+            eval_res = evaluate(f_gold.name, f.name, DB_DIR, "all", kmaps, plug_value=False, keep_distinct=False,
+                                progress_bar_for_each_datapoint=False)
+            wandb.log({
+                "execution_accuracy": eval_res["all"]["exec"],
+                "execution_accuracy_easy": eval_res["easy"]["exec"],
+                "execution_accuracy_medium": eval_res["medium"]["exec"],
+                "execution_accuracy_hard": eval_res["hard"]["exec"],
+                "execution_accuracy_extra": eval_res["extra"]["exec"],
+                "exact_match": eval_res["all"]["exact"],
+                "exact_match_easy": eval_res["easy"]["exact"],
+                "exact_match_medium": eval_res["medium"]["exact"],
+                "exact_match_hard": eval_res["hard"]["exact"],
+                "exact_match_extra": eval_res["extra"]["exact"],
+            })
 
 
 if __name__ == '__main__':
