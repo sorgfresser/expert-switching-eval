@@ -401,7 +401,6 @@ def postprocess_sql(sql):
 EHRSQL_PATH = os.environ.get("EHRSQL_PATH", None)
 TABLES_JSON_PATH = os.environ.get("TABLES_JSON_PATH", None)
 DB_DIR = os.environ.get("DB_DIR", None)
-GOLD_FILE = os.environ.get("GOLD_FILE", None)
 GRAMMAR_PATH = os.environ.get("GRAMMAR_PATH", None)
 
 # Check if all paths are set
@@ -411,8 +410,6 @@ if not TABLES_JSON_PATH:
     raise ValueError("TABLES_JSON_PATH not set")
 if not DB_DIR:
     raise ValueError("DB_PATH not set")
-if not GOLD_FILE:
-    raise ValueError("GOLD_FILE not set")
 if not GRAMMAR_PATH:
     raise ValueError("GRAMMAR_PATH not set")
 
