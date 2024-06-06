@@ -469,9 +469,10 @@ def main():
         # Convert ehrsql json to sql
         with NamedTemporaryFile("w", suffix=".sql") as f_gold:
             gold_results = [
-                postprocess_sql(question["query"]) for question in questions
+                f"{postprocess_sql(question['query'])}\tmimic_iii" for question in questions
             ]
             f_gold.write("\n".join(gold_results))
+            f_gold.flush()
             kmaps = build_foreign_key_map_from_json(TABLES_JSON_PATH)
             eval_res = evaluate(f_gold.name, f.name, DB_DIR, "all", kmaps, plug_value=False, keep_distinct=False,
                                 progress_bar_for_each_datapoint=False)
