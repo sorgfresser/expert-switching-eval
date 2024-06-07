@@ -18,6 +18,7 @@ from transformers_cfg.switches import (
     switch_experts_top_p_experts,
 )
 from test_suite_sql_eval.evaluation import evaluate, build_foreign_key_map_from_json
+from grammar_substitution import substitute_in_grammar
 from tempfile import NamedTemporaryFile
 import tqdm
 from dotenv import load_dotenv
@@ -123,6 +124,7 @@ def generate_one(
         question: str,
         identifier: str,
         no_switch=False,
+        constrain_names=False,
         device="cpu",
 ):
     gen_config = GenerationConfigRoutable(**(model.generation_config.to_dict()))
@@ -147,6 +149,8 @@ def generate_one(
     # Load grammar
     with open(grammar_path, "r") as file:
         grammar_str = file.read()
+    if constrain_names:
+        grammar_str = substitute_in_grammar(grammar_str, tables)
     grammar = IncrementalGrammarConstraint(grammar_str, "root", tokenizer)
     grammar_processor = GrammarConstrainedLogitsProcessor(grammar)
 
@@ -245,6 +249,7 @@ def main():
     parser.add_argument("--top_k_tokens", type=int, default=0)
     parser.add_argument("--top_p_tokens", type=float, default=0.0)
     parser.add_argument("--no-switch", action="store_true")
+    parser.add_argument("--constrain-names", action="store_true")
     args = parser.parse_args()
     model = MixtralForCausalLMRoutable.from_pretrained(MODEL_ID, device_map="auto")
     tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
@@ -305,6 +310,7 @@ def main():
             question["question"],
             str(idx),
             no_switch=args.no_switch,
+            constrain_names=args.constrain_names,
             device=model.device,
         )
         total_fallbacks += fallbacks
