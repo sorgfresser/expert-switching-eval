@@ -157,7 +157,7 @@ def generate_one(
     try:
         output = model.generate(
             input_ids,
-            max_new_tokens=100,
+            max_new_tokens=150,
             logits_processor=[grammar_processor],
             num_return_sequences=1,
             repetition_penalty=1.2,
