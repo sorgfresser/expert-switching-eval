@@ -17,7 +17,8 @@ def specific_attributes_to_grammar(grammar_lines: list[str], attribute_names: li
     assert len(attribute_lines) == 1, "There should be exactly one attribute line in the grammar"
 
     # Add surrounding quotes to attribute names
-    attribute_names = [f'"{attribute_name.replace("\"", "'")}"' for attribute_name in attribute_names]
+    attribute_names = [attribute_name.replace("\"", "'") for attribute_name in attribute_names]
+    attribute_names = [f'"{attribute_name}"' for attribute_name in attribute_names]
     attribute_idx = grammar_lines.index(attribute_lines[0])
 
     new_attribute_line = f"single_attribute ::= {' | '.join(attribute_names)}"
@@ -41,7 +42,8 @@ def specific_tables_to_grammar(grammar_lines: list[str], table_names: list[str])
     assert len(table_lines) == 1, "There should be exactly one table line in the grammar"
 
     # Add surrounding quotes to table names
-    table_names = [f'"{table_name.replace("\"", "'")}"' for table_name in table_names]
+    table_names = [table_name.replace("\"", "'") for table_name in table_names]
+    table_names = [f'"{table_name}"' for table_name in table_names]
     table_idx = grammar_lines.index(table_lines[0])
 
     new_table_line = f"table ::= {' | '.join(table_names)}"
