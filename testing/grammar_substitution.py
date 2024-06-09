@@ -86,6 +86,8 @@ def attributes_from_sql(sql: str) -> list[str]:
                                     "PRIMARY KEY") and not statement.strip().startswith("UNIQUE")]
 
         attribute_statements = [statement.strip() for statement in attribute_statements]
+        # Remove empty lines
+        attribute_statements = [statement for statement in attribute_statements if statement]
         attribute_names = [statement.split()[0] for statement in attribute_statements]
         attributes.extend(attribute_names)
     return list(set(attributes))
