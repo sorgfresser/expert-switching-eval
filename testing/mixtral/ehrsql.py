@@ -359,7 +359,7 @@ def generate_one(
     with open(grammar_path, "r") as file:
         grammar_str = file.read()
     if constrain_names:
-        grammar_str = substitute_in_grammar(grammar_str, tables)
+        grammar_str = "\n".join(substitute_in_grammar(grammar_str.split("\n"), tables))
     grammar = IncrementalGrammarConstraint(grammar_str, "root", tokenizer)
     grammar_processor = GrammarConstrainedLogitsProcessor(grammar)
 
