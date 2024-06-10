@@ -429,6 +429,7 @@ def main():
     parser.add_argument("--top_p_experts", type=float, default=0.0)
     parser.add_argument("--top_k_tokens", type=int, default=0)
     parser.add_argument("--top_p_tokens", type=float, default=0.0)
+    parser.add_argument("--output-path", type=str, default=None)
     parser.add_argument("--no-switch", action="store_true")
     parser.add_argument("--constrain-names", action="store_true")
     args = parser.parse_args()
@@ -467,6 +468,10 @@ def main():
         total_switches_wo_fallback += switches_wo_fallback
         result = postprocess_sql(result)
         results.append(result)
+
+    if args.output_path:
+        with open(args.output_path, "w") as file:
+            file.write("\n".join(results))
 
     # Dump to temp file
     with NamedTemporaryFile("w", suffix=".sql") as f:
