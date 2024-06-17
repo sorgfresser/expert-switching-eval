@@ -1,6 +1,7 @@
 import argparse
 from spider_from_args import generate_one
 import json
+import tqdm
 from pathlib import Path
 
 
@@ -11,7 +12,7 @@ def execute_task(task_id, task_dir):
     with task_file.open("r") as f:
         task = json.load(f)
     results = []
-    for arguments in task:
+    for arguments in tqdm.tqdm(task):
         results.append(generate_one(*arguments))
     # Dump the results to a file
     result_file = task_dir / f"result_{task_id}.json"
