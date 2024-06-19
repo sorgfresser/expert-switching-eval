@@ -1,5 +1,5 @@
 import argparse
-from spider_from_args import generate_one
+from ehrsql_from_args import generate_one
 import json
 import tqdm
 from pathlib import Path
