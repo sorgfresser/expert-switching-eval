@@ -263,6 +263,7 @@ def main():
     parser.add_argument("--output-path", type=str, default=None)
     parser.add_argument("--no-switch", action="store_true")
     parser.add_argument("--constrain-names", action="store_true")
+    parser.add_argument("--no-gcd", action="store_true")
     args = parser.parse_args()
 
     with open(EHRSQL_PATH, "r") as file:
@@ -282,6 +283,7 @@ def main():
             question["id"],
             args.no_switch,
             args.constrain_names,
+            args.no_gcd,
         ) for idx, question in enumerate(tqdm.tqdm(questions))
     ]
     with open("args.json", "w") as f:

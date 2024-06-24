@@ -128,6 +128,7 @@ def generate_one(
         identifier: str,
         no_switch=False,
         constrain_names=False,
+        no_gcd=False,
 ):
     gen_config = GenerationConfigRoutable(**(model.generation_config.to_dict()))
     gen_config.output_router_logits = True
@@ -149,18 +150,21 @@ def generate_one(
     )["input_ids"].to(model.device)
 
     # Load grammar
-    with open(grammar_path, "r") as file:
-        grammar_str = file.read()
-    if constrain_names:
-        grammar_str = "\n".join(substitute_in_grammar(grammar_str.split("\n"), tables))
-    grammar = IncrementalGrammarConstraint(grammar_str, "root", tokenizer)
-    grammar_processor = GrammarConstrainedLogitsProcessor(grammar)
-
+    if no_gcd:
+        logits_processor = []
+    else:
+        with open(grammar_path, "r") as file:
+            grammar_str = file.read()
+        if constrain_names:
+            grammar_str = "\n".join(substitute_in_grammar(grammar_str.split("\n"), tables))
+        grammar = IncrementalGrammarConstraint(grammar_str, "root", tokenizer)
+        grammar_processor = GrammarConstrainedLogitsProcessor(grammar)
+        logits_processor = [grammar_processor]
     try:
         output = model.generate(
             input_ids,
             max_new_tokens=150,
-            logits_processor=[grammar_processor],
+            logits_processor=logits_processor,
             num_return_sequences=1,
             repetition_penalty=1.2,
             generation_config=gen_config,
