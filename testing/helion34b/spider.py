@@ -21,6 +21,7 @@ from test_suite_sql_eval.evaluation import evaluate, build_foreign_key_map_from_
 from grammar_substitution import substitute_in_grammar
 from tempfile import NamedTemporaryFile
 import tqdm
+import time
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -177,6 +178,7 @@ def generate_one(
         fallbacks,
         switches,
         switches_wo_fallback,
+        output_ids.shape[1]
     )
 
 
@@ -298,8 +300,11 @@ def main():
     total_fallbacks = 0
     total_switches = 0
     total_switches_wo_fallback = 0
+    total_token_count = 0
+    total_time = 0.0
     for idx, question in enumerate(tqdm.tqdm(questions)):
-        result, fallbacks, switches, switches_wo_fallback = generate_one(
+        start_time = time.time()
+        result, fallbacks, switches, switches_wo_fallback, tokens = generate_one(
             args.top_k_experts,
             args.top_p_experts,
             args.top_k_tokens,
@@ -317,13 +322,16 @@ def main():
         total_fallbacks += fallbacks
         total_switches += switches
         total_switches_wo_fallback += switches_wo_fallback
+        total_token_count += tokens
+        end_time = time.time()
+        total_time += end_time - start_time
         result = postprocess_sql(result)
         results.append(result)
+        print("Tokens per second", total_token_count / total_time)
 
     if args.output_path:
         with open(args.output_path, "w") as file:
             file.write("\n".join(results))
-
 
     # Dump to temp file
     with NamedTemporaryFile("w", suffix=".sql") as f:
@@ -340,7 +348,8 @@ def main():
     print("Total fallbacks", total_fallbacks)
     print("Total switches", total_switches)
     print("Total switches without fallback", total_switches_wo_fallback)
-
+    print("Total tokens", total_token_count)
+    print("Total tokens per second", total_token_count / total_time)
 
 if __name__ == '__main__':
     main()
