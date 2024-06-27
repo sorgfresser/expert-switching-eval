@@ -334,6 +334,7 @@ def generate_one(
         identifier: str,
         no_switch=False,
         constrain_names=False,
+        no_gcd=False,
         device="cpu",
 ):
     gen_config = GenerationConfigRoutable(**(model.generation_config.to_dict()))
@@ -356,18 +357,22 @@ def generate_one(
     )["input_ids"].to(device)
 
     # Load grammar
-    with open(grammar_path, "r") as file:
-        grammar_str = file.read()
-    if constrain_names:
-        grammar_str = "\n".join(substitute_in_grammar(grammar_str.split("\n"), tables))
-    grammar = IncrementalGrammarConstraint(grammar_str, "root", tokenizer)
-    grammar_processor = GrammarConstrainedLogitsProcessor(grammar)
+    if no_gcd:
+        logits_processor = []
+    else:
+        with open(grammar_path, "r") as file:
+            grammar_str = file.read()
+        if constrain_names:
+            grammar_str = "\n".join(substitute_in_grammar(grammar_str.split("\n"), tables))
+        grammar = IncrementalGrammarConstraint(grammar_str, "root", tokenizer)
+        grammar_processor = GrammarConstrainedLogitsProcessor(grammar)
+        logits_processor = [grammar_processor]
 
     try:
         output = model.generate(
             input_ids,
             max_new_tokens=150,
-            logits_processor=[grammar_processor],
+            logits_processor=logits_processor,
             num_return_sequences=1,
             repetition_penalty=1.2,
             generation_config=gen_config,
@@ -432,6 +437,7 @@ def main():
     parser.add_argument("--output-path", type=str, default=None)
     parser.add_argument("--no-switch", action="store_true")
     parser.add_argument("--constrain-names", action="store_true")
+    parser.add_argument("--no-gcd", action="store_true")
     args = parser.parse_args()
     model = MixtralForCausalLMRoutable.from_pretrained(MODEL_ID, device_map="auto")
     tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
@@ -461,6 +467,7 @@ def main():
             question["id"],
             no_switch=args.no_switch,
             constrain_names=args.constrain_names,
+            no_gcd=args.no_gcd,
             device=model.device,
         )
         total_fallbacks += fallbacks
